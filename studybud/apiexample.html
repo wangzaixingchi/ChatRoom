@@ -10,15 +10,21 @@
 
 <body>
 
-    <h1>Cools Rooms</h1>
+<h1>Cools Rooms</h1>
 
-    <div id="rooms-container">
+<div id="rooms-container">
 
-    </div>
+</div>
 
 </body>
 
 <script>
+    function submitSearch() {
+        var query = document.getElementById('searchQuery').value;
+        var encodedQuery = encodeURIComponent(query);
+        window.location.search = 'q=' + encodedQuery;
+    }
+
     let roomsContainer = document.getElementById('rooms-container')
 
     let getRooms = async () => {
