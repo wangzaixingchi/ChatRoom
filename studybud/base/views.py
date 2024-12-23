@@ -74,6 +74,8 @@ def room(request,pk):
     room =Room.objects.get(id=pk)
     room_messages=room.message_set.all()
     participants =room.participants.all()
+    if not request.user.is_authenticated:
+        return redirect('/login/')
     if request.method =='POST':
         message =Message.objects.create(
             user=request.user,
