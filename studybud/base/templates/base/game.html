@@ -1,0 +1,292 @@
+{% extends 'main.html' %}
+{% block content %}
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>贪吃蛇游戏</title>
+    <style>
+        .gamemap {
+            height: calc(100% - 8vh);
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+
+        canvas {
+            background-color: #AAD751; /* 游戏画布背景色 */
+            max-width: 100%;
+            max-height: 100%;
+        }
+
+        .operation {
+            position: absolute;
+            top: 10px;
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            background-color: #0d6efd;
+            border: none;
+            border-radius: 5px;
+            font-size: 3vh;
+            color: white;
+            padding: 10px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        .ranklist {
+            position: absolute;
+            background-color: lightblue;
+            padding: 10px;
+            border-radius: 5px;
+            display: none;
+        }
+
+        .ranklist.show {
+            display: block;
+        }
+
+        .score-board {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            display: flex;
+            justify-content: space-around;
+            background-color: #4A752C; /* 分数板背景色 */
+            padding: 10px;
+            border-radius: 5px;
+        }
+
+        .mobile-controls {
+            display: none; /* 初始隐藏，非移动设备 */
+            flex-direction: column;
+            position: absolute;
+            bottom: 10px;
+        }
+
+        .mobile-controls button {
+            margin: 5px;
+        }
+
+        @media (max-width: 600px) {
+            .mobile-controls {
+                display: flex; /* 移动设备显示控制按钮 */
+            }
+
+            .operation {
+                display: none; /* 移动设备隐藏桌面按钮 */
+            }
+        }
+    </style>
+</head>
+<body>
+<div>
+    <div class="score-board">
+        <div class="apple">
+            <img src="https://app2468.acapp.acwing.com.cn/static/images/apple.png" alt="apple" style="width: 50px;">
+            <div>分数: <span id="score">0</span></div>
+        </div>
+        <div class="cup">
+            <img src="https://app2468.acapp.acwing.com.cn/static/images/cup.png" alt="cup" style="width: 50px;">
+            <div>记录: <span id="record">0</span></div>
+        </div>
+    </div>
+    <div class="gamemap">
+        <canvas id="gameCanvas" tabindex="0" width="500" height="500"></canvas>
+        <div class="operation" id="operationButtons">
+            <button onclick="restartGame()">开始游戏</button>
+            <button onclick="toggleRanklist()">排行榜</button>
+        </div>
+        <div class="mobile-controls">
+            <button onclick="changeDirection('up')">↑</button>
+            <div>
+                <button onclick="changeDirection('left')">←</button>
+                <button onclick="changeDirection('right')">→</button>
+            </div>
+            <button onclick="changeDirection('down')">↓</button>
+        </div>
+        <div class="ranklist" id="ranklist">
+            <div><span onclick="toggleRanklist()">关闭</span></div>
+            <div id="players"></div>
+        </div>
+    </div>
+</div>
+<script>
+    // 声明全局变量
+    const gridSize = 20; // 每个格子的大小
+    const tileCount = 25; // 网格中的格子数量
+    let score = 0; // 当前分数
+    let record = 0; // 最高分数
+    let snake = [{x: 10, y: 10}]; // 蛇的初始位置
+    let apple = placeApple(); // 初始苹果位置
+    let direction = {x: 0, y: 0}; // 初始方向
+    let gameSpeed = 2000 / 15; // 初始游戏速度
+    let gameInterval; // 游戏循环的定时器ID
+
+    // 获取DOM元素
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreElement = document.getElementById('score');
+    const recordElement = document.getElementById('record');
+    const ranklistElement = document.getElementById('ranklist');
+    const playersElement = document.getElementById('players');
+    const operationButtons = document.getElementById('operationButtons'); // 获取操作按钮容器
+
+    // 加载苹果图像
+    const appleImage = new Image();
+    appleImage.src = 'https://app2468.acapp.acwing.com.cn/static/images/apple.png';
+
+    function restartGame() {
+        score = 0; // 重置分数
+        scoreElement.textContent = score; // 更新分数显示
+        snake = [{x: 10, y: 10}]; // 重置蛇的位置
+        apple = placeApple(); // 放置新的苹果
+        direction = {x: 0, y: 0}; // 重置方向
+        clearInterval(gameInterval); // 清除现有的游戏循环
+        operationButtons.style.display = 'none'; // 隐藏操作按钮
+        gameLoop(); // 启动游戏循环
+    }
+
+    function gameLoop() {
+        gameInterval = setInterval(() => {
+            if (isGameOver()) {
+                clearInterval(gameInterval); // 游戏结束时清除定时器
+                alert("游戏结束！您的分数是: " + score); // 提示分数
+                if (score > record) {
+                    record = score; // 更新记录
+                    recordElement.textContent = record; // 更新记录显示
+                }
+                operationButtons.style.display = 'flex'; // 显示操作按钮
+                return; // 退出循环
+            }
+
+            updateSnake(); // 更新蛇的位置
+            drawGame(); // 绘制游戏
+        }, gameSpeed);
+    }
+
+    function updateSnake() {
+        const head = {x: snake[0].x + direction.x, y: snake[0].y + direction.y};
+        snake.unshift(head); // 在头部添加新头段
+
+        // 检查蛇头是否与苹果重叠
+        if (head.x === apple.x && head.y === apple.y) {
+            score++; // 增加分数
+            scoreElement.textContent = score; // 更新分数显示
+            apple = placeApple(); // 重新放置苹果
+            // 不删除尾段，使蛇变长
+        } else {
+            snake.pop(); // 如果没有吃到苹果，删除尾段
+        }
+    }
+
+    function drawGame() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = 'blue';
+        snake.forEach(segment => {
+            ctx.fillRect(segment.x * gridSize, segment.y * gridSize, gridSize, gridSize);
+        });
+        // 绘制苹果图像
+        ctx.drawImage(appleImage, apple.x * gridSize, apple.y * gridSize, gridSize, gridSize);
+    }
+
+    function handleKeyPress(event) {
+        switch (event.key) {
+            case 'Shift':
+                // 按下 Shift 切换速度
+                gameSpeed = gameSpeed === 2000 / 15 ? 1000 / 15 : 2000 / 15; // 切换速度
+                clearInterval(gameInterval); // 清除当前定时器
+                gameLoop(); // 重新开始游戏循环
+                break;
+            case 'ArrowUp':
+                changeDirection('up');
+                break;
+            case 'ArrowDown':
+                changeDirection('down');
+                break;
+            case 'ArrowLeft':
+                changeDirection('left');
+                break;
+            case 'ArrowRight':
+                changeDirection('right');
+                break;
+        }
+    }
+
+    function changeDirection(dir) {
+        switch (dir) {
+            case 'up':
+                if (direction.y === 0) direction = {x: 0, y: -1};
+                break;
+            case 'down':
+                if (direction.y === 0) direction = {x: 0, y: 1};
+                break;
+            case 'left':
+                if (direction.x === 0) direction = {x: -1, y: 0};
+                break;
+            case 'right':
+                if (direction.x === 0) direction = {x: 1, y: 0};
+                break;
+        }
+    }
+
+    function isGameOver() {
+        const head = snake[0];
+        // 检查蛇头是否撞到边界
+        if (head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount) {
+            return true; // 碰到边界，游戏结束
+        }
+        // 检查蛇头是否撞到自己的身体
+        for (let i = 1; i < snake.length; i++) {
+            if (snake[i].x === head.x && snake[i].y === head.y) {
+                return true; // 碰到自己，游戏结束
+            }
+        }
+        return false; // 游戏继续
+    }
+
+    function placeApple() {
+        let newApple;
+        do {
+            // 生成苹果的坐标，确保在合法范围内
+            newApple = {
+                x: Math.floor(Math.random() * (tileCount)), // x坐标范围: 0到tileCount-1
+                y: Math.floor(Math.random() * (tileCount)), // y坐标范围: 0到tileCount-1
+            };
+        } while (snake.some(segment => segment.x === newApple.x && segment.y === newApple.y));
+        return newApple;
+    }
+
+    function toggleRanklist() {
+        ranklistElement.classList.toggle('show');
+        if (ranklistElement.classList.contains('show')) {
+            loadRanklist();
+        }
+    }
+
+    function loadRanklist() {
+        playersElement.innerHTML = ''; // 清空当前列表
+        const players = [
+            {rank: 1, username: '玩家1', score: 100},
+            {rank: 2, username: '玩家2', score: 90}
+        ];
+        players.forEach(player => {
+            const playerDiv = document.createElement('div');
+            playerDiv.innerHTML = `#${player.rank} ${player.username} - ${player.score}`;
+            playersElement.appendChild(playerDiv);
+        });
+    }
+
+    window.addEventListener('keydown', handleKeyPress);
+</script>
+</body>
+{% endblock content %}

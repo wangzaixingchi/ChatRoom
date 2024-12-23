@@ -185,3 +185,8 @@ def activityPage(request):
     room_messages = Message.objects.all()[0:10]
     context={'room_messages':room_messages}
     return render(request,'base/activity.html',context)
+
+@login_required(login_url='/login')
+def game(request):
+    return render(request,'base/game.html')
+
